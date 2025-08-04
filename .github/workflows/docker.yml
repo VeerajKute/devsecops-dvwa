@@ -28,7 +28,7 @@ jobs:
         run: sleep 30
 
       - name: Run Trivy scan on DVWA image
-        uses: aquasecurity/trivy-action@v0.10.0
+        uses: aquasecurity/trivy-action@v0.9.1
         with:
           image-ref: ghcr.io/digininja/dvwa:latest
           format: 'table'
