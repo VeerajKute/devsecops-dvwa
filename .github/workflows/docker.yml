@@ -11,6 +11,8 @@ on:
 jobs:
   dvwa-setup-and-scan:
     runs-on: ubuntu-latest
+    outputs:
+      zap_exit_code: ${{ steps.zap_scan.outcome_code }}
 
     steps:
       - name: Checkout repo
@@ -40,19 +42,29 @@ jobs:
           sudo chown -R 1000:1000 ${{ github.workspace }}/zap-reports
 
       - name: Run OWASP ZAP Baseline Scan
+        id: zap_scan
         run: |
           docker run --rm --platform linux/amd64 --network host \
             -v ${{ github.workspace }}/zap-reports:/zap/wrk/:rw \
             zaproxy/zap-weekly:latest \
             zap-baseline.py -t http://127.0.0.1:4280 -r zap_report.html
+        continue-on-error: true
+
+      - name: Capture ZAP exit code
+        id: capture_exit
+        run: echo "::set-output name=code::$?"
 
       - name: Tear down containers
         run: docker-compose down
 
+      - name: Fail if ZAP exit code is not 0 or 2
+        if: steps.zap_scan.outcome != 'success' && steps.capture_exit.outputs.code != '2'
+        run: exit ${{ steps.capture_exit.outputs.code }}
+
   notify-success:
     runs-on: ubuntu-latest
     needs: dvwa-setup-and-scan
-    if: success()
+    if: needs.dvwa-setup-and-scan.result == 'success'
     steps:
       - name: Send Slack Notification (Success)
         run: |
@@ -60,10 +72,21 @@ jobs:
           --data '{"text":"DevSecOps pipeline for DVWA completed successfully!"}' \
           ${{ secrets.SLACK_WEBHOOK_URL }}
 
+  notify-warning:
+    runs-on: ubuntu-latest
+    needs: dvwa-setup-and-scan
+    if: needs.dvwa-setup-and-scan.result == 'success' && needs.dvwa-setup-and-scan.outputs.zap_exit_code == '2'
+    steps:
+      - name: Send Slack Notification (Warning)
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{"text":"ZAP scan found vulnerabilities. Please review the report."}' \
+          ${{ secrets.SLACK_WEBHOOK_URL }}
+
   notify-failure:
     runs-on: ubuntu-latest
     needs: dvwa-setup-and-scan
-    if: failure()
+    if: needs.dvwa-setup-and-scan.result == 'failure'
     steps:
       - name: Send Slack Notification (Failure)
         run: |
