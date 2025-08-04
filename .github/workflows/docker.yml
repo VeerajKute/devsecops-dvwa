@@ -37,7 +37,7 @@ jobs:
         run: docker pull zaproxy/zap-weekly@sha256:8fac5e429f0490c0e88529199d7ea315bebde3470a361e1008d48ea9b3188f9c
 
       - name: Run OWASP ZAP Baseline Scan
-	    run: |
+        run: |
           docker run --rm --platform linux/amd64 \
             -v ${{ github.workspace }}:/zap/wrk/:rw \
             zaproxy/zap-weekly@sha256:8fac5e429f0490c0e88529199d7ea315bebde3470a361e1008d48ea9b3188f9c \
