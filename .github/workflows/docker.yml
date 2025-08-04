@@ -28,19 +28,16 @@ jobs:
         run: sleep 30
 
       - name: Run Trivy scan on DVWA image
-        uses: aquasecurity/trivy-action@0.9.1
+        uses: aquasecurity/trivy-action@0.11.0
         with:
           image-ref: ghcr.io/digininja/dvwa:latest
           format: 'table'
-
-      - name: Pull exact OWASP ZAP image by digest
-        run: docker pull zaproxy/zap-weekly@sha256:8fac5e429f0490c0e88529199d7ea315bebde3470a361e1008d48ea9b3188f9c
 
       - name: Run OWASP ZAP Baseline Scan
         run: |
           docker run --rm --platform linux/amd64 \
             -v ${{ github.workspace }}:/zap/wrk/:rw \
-            zaproxy/zap-weekly@sha256:8fac5e429f0490c0e88529199d7ea315bebde3470a361e1008d48ea9b3188f9c \
+            zaproxy/zap-weekly:latest \
             zap-baseline.py -t http://127.0.0.1:4280 -r zap_report.html
 
       - name: Upload ZAP report artifact
