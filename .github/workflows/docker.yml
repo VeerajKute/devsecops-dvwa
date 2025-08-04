@@ -3,100 +3,58 @@ name: DevSecOps CI/CD Pipeline
 on:
   push:
     branches:
-      - main  
+      - main
   pull_request:
     branches:
-      - main  
+      - main
 
 jobs:
-  # Job 1: Docker Image Build
-  build:
+  dvwa-setup-and-scan:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v2
+      - name: Checkout repo
+        uses: actions/checkout@v2
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v1
+      - name: Install Docker Compose
+        run: |
+          sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
+          docker-compose --version
 
-    - name: Set up Docker Cache
-      uses: actions/cache@v3
-      with:
-        path: /tmp/.buildx-cache
-        key: ${{ runner.os }}-buildx-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-buildx-
+      - name: Start DVWA containers
+        run: docker-compose up -d
 
-    - name: Log in to DockerHub
-      uses: docker/login-action@v1
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Wait for DVWA to be ready
+        run: sleep 30
 
-    - name: Build Docker Image and Push
-      run: |
-        docker build -t veerajkute/devsecops-dvwa-project:latest .
-        docker push veerajkute/devsecops-dvwa-project:latest
+      - name: Run Trivy scan on DVWA image
+        run: trivy image ghcr.io/digininja/dvwa:latest
 
-  # Job 2: Ansible Playbook Run
-  ansible:
-    runs-on: ubuntu-latest
-    needs: build  
+      - name: Run OWASP ZAP scan
+        run: docker run --rm owasp/zap2docker-stable zap-baseline.py -t http://127.0.0.1:4280
 
-    steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v2
+      - name: Tear down containers
+        run: docker-compose down
 
-    - name: Install Ansible
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y ansible
-
-    - name: Run Ansible Playbook
-      run: |
-        ansible-playbook -i inventory/localhost, playbooks/setup-dvwa.yml
-
-  # Job 3: Run Trivy Scan
-  scan:
-    runs-on: ubuntu-latest
-    needs: build  
-
-    steps:
-    - name: Run Trivy scan on the Docker image
-      run: trivy image veerajkute/devsecops-dvwa-project:latest
-
-  # Job 4: Run OWASP ZAP Scan
-  zap:
-    runs-on: ubuntu-latest
-    needs: build  
-
-    steps:
-    - name: Run OWASP ZAP scan
-      run: docker run --rm owasp/zap2docker-stable zap-baseline.py -t http://127.0.0.1:4280
-
-  # Job 5: Send Slack Notification (Success)
   notify-success:
     runs-on: ubuntu-latest
-    needs: [build, ansible, scan, zap] 
-
+    needs: dvwa-setup-and-scan
+    if: success()
     steps:
-    - name: Send Slack Notification (Success)
-      if: success() 
-      run: |
-        curl -X POST -H 'Content-type: application/json' \
-        --data '{"text":"The DevSecOps pipeline for DVWA has completed successfully!"}' \
-        ${{ secrets.SLACK_WEBHOOK_URL }}
+      - name: Send Slack Notification (Success)
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{"text":" DevSecOps pipeline for DVWA completed successfully!"}' \
+          ${{ secrets.SLACK_WEBHOOK_URL }}
 
-  # Job 6: Send Slack Notification (Failure)
   notify-failure:
     runs-on: ubuntu-latest
-    needs: [build, ansible, scan, zap]  
-
+    needs: dvwa-setup-and-scan
+    if: failure()
     steps:
-    - name: Send Slack Notification (Failure)
-      if: failure()  
-      run: |
-        curl -X POST -H 'Content-type: application/json' \
-        --data '{"text":"The DevSecOps pipeline for DVWA has failed!"}' \
-        ${{ secrets.SLACK_WEBHOOK_URL }}
+      - name: Send Slack Notification (Failure)
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{"text":" DevSecOps pipeline for DVWA failed!"}' \
+          ${{ secrets.SLACK_WEBHOOK_URL }}
+
