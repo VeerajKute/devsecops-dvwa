@@ -1,13 +1,3 @@
-name: DevSecOps CI/CD Pipeline
-
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-
 jobs:
   dvwa-setup-and-scan:
     runs-on: ubuntu-latest
@@ -28,39 +18,27 @@ jobs:
         run: sleep 30
 
       - name: Run Trivy scan on DVWA image
-        uses: aquasecurity/trivy-action@0.9.1
+        uses: aquasecurity/trivy-action@0.10
         with:
           image-ref: ghcr.io/digininja/dvwa:latest
           format: 'table'
 
+      - name: Pull exact OWASP ZAP image by digest
+        run: docker pull zaproxy/zap-weekly@sha256:8fac5e429f0490c0e88529199d7ea315bebde3470a361e1008d48ea9b3188f9c
+
       - name: Run OWASP ZAP Baseline Scan
-        uses: zaproxy/action-baseline@v0.7.0
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/zap/wrk/:rw \
+            zaproxy/zap-weekly@sha256:8fac5e429f0490c0e88529199d7ea315bebde3470a361e1008d48ea9b3188f9c \
+            zap-baseline.py -t http://127.0.0.1:4280 -r zap_report.html
+
+      - name: Upload ZAP report artifact
+        uses: actions/upload-artifact@v3
         with:
-          target: 'http://127.0.0.1:4280'
-          cmd_options: '-r zap_report.html'
+          name: zap-report
+          path: zap_report.html
 
       - name: Tear down containers
         run: docker-compose down
-
-  notify-success:
-    runs-on: ubuntu-latest
-    needs: dvwa-setup-and-scan
-    if: success()
-    steps:
-      - name: Send Slack Notification (Success)
-        run: |
-          curl -X POST -H 'Content-type: application/json' \
-          --data '{"text":"DevSecOps pipeline for DVWA completed successfully!"}' \
-          ${{ secrets.SLACK_WEBHOOK_URL }}
-
-  notify-failure:
-    runs-on: ubuntu-latest
-    needs: dvwa-setup-and-scan
-    if: failure()
-    steps:
-      - name: Send Slack Notification (Failure)
-        run: |
-          curl -X POST -H 'Content-type: application/json' \
-          --data '{"text":"DevSecOps pipeline for DVWA failed!"}' \
-          ${{ secrets.SLACK_WEBHOOK_URL }}
 
