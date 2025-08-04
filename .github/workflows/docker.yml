@@ -11,9 +11,10 @@ on:
 jobs:
   dvwa-setup-and-scan:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Install Docker Compose
         run: |
@@ -28,23 +29,24 @@ jobs:
         run: sleep 30
 
       - name: Run Trivy scan on DVWA image
-        uses: aquasecurity/trivy-action@0.11.0
+        uses: aquasecurity/trivy-action@0.11.1
         with:
           image-ref: ghcr.io/digininja/dvwa:latest
-          format: 'table'
+          format: table
 
       - name: Run OWASP ZAP Baseline Scan
         run: |
-          docker run --rm --platform linux/amd64 \
-            -v ${{ github.workspace }}:/zap/wrk/:rw \
+          mkdir -p ${{ github.workspace }}/zap-reports
+          docker run --rm --platform linux/amd64 --network host \
+            -v ${{ github.workspace }}/zap-reports:/zap/wrk/:rw \
             zaproxy/zap-weekly:latest \
-            zap-baseline.py -t http://127.0.0.1:4280 -r zap_report.html
+            zap-baseline.py -t http://host.docker.internal:4280 -r zap_report.html
 
       - name: Upload ZAP report artifact
         uses: actions/upload-artifact@v4
         with:
           name: zap-report
-          path: zap_report.html
+          path: zap-reports/zap_report.html
 
       - name: Tear down containers
         run: docker-compose down
@@ -70,4 +72,3 @@ jobs:
           curl -X POST -H 'Content-type: application/json' \
           --data '{"text":"DevSecOps pipeline for DVWA failed!"}' \
           ${{ secrets.SLACK_WEBHOOK_URL }}
-
