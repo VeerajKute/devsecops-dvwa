@@ -1,0 +1,46 @@
+---
+- name: Set up DVWA environment
+  hosts: localhost
+  become: true  # Allows sudo commands to be run
+
+  tasks:
+    - name: Install Docker dependencies (Ubuntu/Debian)
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+        state: present
+        update_cache: yes
+
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker APT repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/debian bullseye stable"
+        state: present
+
+    - name: Install Docker
+      apt:
+        name: docker-ce
+        state: present
+
+    - name: Install Docker Compose
+      apt:
+        name: docker-compose
+        state: present
+
+    - name: Clone the DVWA repository
+      git:
+        repo: https://github.com/ethicalhack3r/DVWA.git
+        dest: /opt/devsecops
+        version: main
+
+    - name: Build and start DVWA containers
+      command:
+        cmd: docker-compose up -d
+        chdir: /opt/devsecops
