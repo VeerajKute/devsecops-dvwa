@@ -54,11 +54,17 @@ jobs:
         id: capture_exit
         run: echo "code=$?" >> $GITHUB_OUTPUT
 
+      - name: Upload ZAP report artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: zap-report
+          path: zap-reports/zap_report.html
+
       - name: Tear down containers
         run: docker-compose down
 
       - name: Fail if ZAP exit code is not 0 or 2
-        if: steps.zap_scan.outcome != 'success' && steps.capture_exit.outputs.code != '2'
+        if: steps.capture_exit.outputs.code != '0' && steps.capture_exit.outputs.code != '2'
         run: exit ${{ steps.capture_exit.outputs.code }}
 
   notify-success:
@@ -80,7 +86,7 @@ jobs:
       - name: Send Slack Notification (Warning)
         run: |
           curl -X POST -H 'Content-type: application/json' \
-          --data '{"text":"ZAP scan completed with vulnerabilities detected. Please review the ZAP report."}' \
+          --data '{"text":"ZAP scan found vulnerabilities in DVWA! Please review the zap_report.html artifact."}' \
           ${{ secrets.SLACK_WEBHOOK_URL }}
 
   notify-failure:
