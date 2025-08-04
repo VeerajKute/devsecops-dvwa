@@ -12,7 +12,7 @@ jobs:
   dvwa-setup-and-scan:
     runs-on: ubuntu-latest
     outputs:
-      zap_exit_code: ${{ steps.zap_scan.outcome_code }}
+      zap_exit_code: ${{ steps.capture_exit.outputs.code }}
 
     steps:
       - name: Checkout repo
@@ -52,7 +52,7 @@ jobs:
 
       - name: Capture ZAP exit code
         id: capture_exit
-        run: echo "::set-output name=code::$?"
+        run: echo "code=$?" >> $GITHUB_OUTPUT
 
       - name: Tear down containers
         run: docker-compose down
@@ -64,12 +64,12 @@ jobs:
   notify-success:
     runs-on: ubuntu-latest
     needs: dvwa-setup-and-scan
-    if: needs.dvwa-setup-and-scan.result == 'success'
+    if: needs.dvwa-setup-and-scan.result == 'success' && needs.dvwa-setup-and-scan.outputs.zap_exit_code == '0'
     steps:
       - name: Send Slack Notification (Success)
         run: |
           curl -X POST -H 'Content-type: application/json' \
-          --data '{"text":"DevSecOps pipeline for DVWA completed successfully!"}' \
+          --data '{"text":"DevSecOps pipeline for DVWA completed successfully with no vulnerabilities!"}' \
           ${{ secrets.SLACK_WEBHOOK_URL }}
 
   notify-warning:
@@ -80,7 +80,7 @@ jobs:
       - name: Send Slack Notification (Warning)
         run: |
           curl -X POST -H 'Content-type: application/json' \
-          --data '{"text":"ZAP scan found vulnerabilities. Please review the report."}' \
+          --data '{"text":"ZAP scan completed with vulnerabilities detected. Please review the ZAP report."}' \
           ${{ secrets.SLACK_WEBHOOK_URL }}
 
   notify-failure:
