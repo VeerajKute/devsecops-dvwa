@@ -7,13 +7,13 @@ WORKDIR /var/www/html
 COPY . .
 
 # 4. Install dependencies (e.g., PHP extensions, MySQL, etc.)
-RUN apt-get update && apt-get install -y \
+RUN apt-get clean && apt-get update && apt-get install -y \
     libpng-dev \
     libjpeg-dev \
     libfreetype6-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install gd \
-    && docker-php-ext-install mysqli
+    && docker-php-ext-install -v gd mysqli
 
 # 5. Expose the container's port (default for DVWA is 80)
 EXPOSE 80
